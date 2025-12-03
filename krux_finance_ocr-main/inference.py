@@ -13,7 +13,7 @@ from data_generator import CLASSES
 
 def get_ocr(image):
     w, h = image.size
-    df = pytesseract.image_to_data(image, output_type=pytesseract.Output.DATAFRAME).dropna()
+    df = pytesseract.image_to_data(image, output_type=pytesseract.Output.DATAFRAME, lang='eng', config='--oem 3 --psm 6').dropna()
     df = df[df.text.str.strip().astype(bool)]
     words = df.text.astype(str).tolist()
     boxes = [[max(0,min(1000,int(r['left']/w*1000))), max(0,min(1000,int(r['top']/h*1000))),
@@ -25,6 +25,7 @@ def get_ocr(image):
 class DocumentAI:
     def __init__(self, model_path="Krux01/document_ai_model_12class"):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_path = model_path
         
         # Handle subfolder for the specific Krux model
         subfolder = "document_ai_model_12class" if model_path == "Krux01/document_ai_model_12class" else None
@@ -72,8 +73,16 @@ class DocumentAI:
             if match: data["id_number"] = match.group(1)
 
         elif doc_type == "COI":
-            match = re.search(r"(?:CIN|Identity\s*Number).*?([LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6})", text, re.IGNORECASE | re.DOTALL)
-            if match: data["id_number"] = match.group(1)
+            # Allow optional spaces between CIN parts to be robust to OCR tokenization
+            pattern_ws = r"[LU]\s*[0-9]{5}\s*[A-Z]{2}\s*[0-9]{4}\s*[A-Z]{3}\s*[0-9]{6}"
+            match = re.search(rf"(?:CIN|Identity\s*Number).*?({pattern_ws})", text, re.IGNORECASE | re.DOTALL)
+            if not match:
+                # Fallback: detect bare CIN even if the label wasn't OCR'ed
+                alt = re.search(rf"\b{pattern_ws}\b", text)
+                if alt:
+                    data["id_number"] = re.sub(r"\s+", "", alt.group(0))
+            else:
+                data["id_number"] = re.sub(r"\s+", "", match.group(1))
 
         elif doc_type == "UDYAM":
             match = re.search(r"UDYAM-[A-Z]{2}-\d{2}-\d{7}", text, re.IGNORECASE)
@@ -107,8 +116,8 @@ class DocumentAI:
             
         try:
             if image_path.lower().endswith('.pdf'):
-                # Convert first page of PDF to image
-                images = convert_from_path(image_path)
+                # Convert first page of PDF to image at moderate DPI for speed/accuracy
+                images = convert_from_path(image_path, dpi=200, first_page=1, last_page=1)
                 if not images:
                     return {"Error": "Empty PDF"}
                 img = images[0].convert("RGB")

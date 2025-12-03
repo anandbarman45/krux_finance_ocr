@@ -2,6 +2,7 @@ import os
 import shutil
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from inference import DocumentAI
 
 app = FastAPI(title="KruxOCR API", description="OCR and Document Classification Service for Indian Business Proofs")
@@ -9,7 +10,17 @@ app = FastAPI(title="KruxOCR API", description="OCR and Document Classification 
 # Initialize Pipeline (Load model once at startup)
 # Note: In a real deployment, you might want to load this lazily or handle model download if not present.
 # For this setup, we assume the model is either present or will fallback to base model.
-pipeline = DocumentAI()
+pipeline = DocumentAI(model_path=os.getenv("MODEL_PATH", "Krux01/document_ai_model_12class"))
+
+origins_env = os.getenv("CORS_ORIGINS", "*")
+origins = [o.strip() for o in origins_env.split(",")] if origins_env else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def health_check():
