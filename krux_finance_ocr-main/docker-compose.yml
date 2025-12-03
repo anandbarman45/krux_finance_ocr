@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  krux-ocr:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - MODEL_PATH=Krux01/document_ai_model_12class
+    deploy:
+      resources:
+        limits:
+          memory: 4G

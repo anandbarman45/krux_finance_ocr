@@ -1,0 +1,14 @@
+transformers
+datasets
+torch
+torchvision
+pillow
+pytesseract
+pdf2image
+accelerate
+scikit-learn
+numpy
+pandas
+fastapi
+uvicorn
+python-multipart
